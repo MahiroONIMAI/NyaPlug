@@ -1,0 +1,5 @@
+name: NyaCatPlugins
+author: MahiroNEKO
+version: '${project.version}'
+main: cn.miaonai.NyaCatPlugins.NyaCatPlugins
+description: Nyacat官方插件
