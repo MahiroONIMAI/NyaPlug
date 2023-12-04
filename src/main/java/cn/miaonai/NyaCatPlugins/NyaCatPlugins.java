@@ -1,35 +1,40 @@
 package cn.miaonai.NyaCatPlugins;
 
-import cn.miaonai.NyaCatPlugins.Account.Account;
-import cn.miaonai.NyaCatPlugins.Commands.Commands;
-import cn.miaonai.NyaCatPlugins.Util.API;
+import cn.miaonai.NyaCatPlugins.Command.BindAccount;
+import cn.miaonai.NyaCatPlugins.Command.FastLogin;
+import cn.miaonai.NyaCatPlugins.Command.UnBindAccount;
+import cn.miaonai.NyaCatPlugins.Util.InsecureWebSocketClient;
+import cn.miaonai.NyaCatPlugins.Util.SSLUtil;
+import com.alibaba.fastjson2.JSONObject;
+import net.md_5.bungee.api.ProxyServer;
+import net.md_5.bungee.api.connection.Connection;
+import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.api.plugin.Plugin;
 import net.md_5.bungee.config.Configuration;
 import net.md_5.bungee.config.ConfigurationProvider;
 import net.md_5.bungee.config.YamlConfiguration;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
+import org.java_websocket.client.WebSocketClient;
+import org.java_websocket.handshake.ServerHandshake;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
 import java.io.File;
 import java.io.IOException;
-import java.sql.SQLException;
-
-import static cn.miaonai.NyaCatPlugins.Util.NyaSQL.connection;
-
-/*
-
-
-
-
- */
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 public  class NyaCatPlugins extends Plugin implements Listener {
 
-    public static int port,stats_port;
-    public static String host,database,password,username,encryptionKey;
-    public static  String VALID_API_KEY;
+    private InsecureWebSocketClient wsClient;
+
+    public static int port;
+    public static boolean ssl,ignorecerterrors;
+    public static String host,serverid,serverkey;
 
     @Override
     public void onEnable() {
@@ -47,15 +52,11 @@ public  class NyaCatPlugins extends Plugin implements Listener {
                 config = ConfigurationProvider.getProvider(YamlConfiguration.class).load(configFile);
                 // 设置他妈的默认值
                 config.set("host", "localhost");
-                config.set("port", 3306);
-                config.set("db", "xycloud");
-                config.set("uname", "xycloud");
-                config.set("pwd", "xycloud");
-                config.set("encryption_key", "2d4fg544r413243ync67t43c642cb678xz78324cbnnd81gh27ggrfg823fgsidg1nmz89wqhedruighsa8q09sdnxc8rb9f72m446b21897dvnaskdjh34bmxzcb325vbksahd");
-                config.set("stats_key","IAN9sd7b7Dfga78HD89");
-                config.set("stats_port",2546);
-                config.set("stats_host","127.0.0.1");
-                config.set("ZuroNeko_API","http://yourapilink.you/v1");
+                config.set("port", 8080);
+                config.set("ssl",true);
+                config.set("ignore-cert-errors",true);
+                config.set("serverid", "15772");
+                config.set("serverkey", "5as4564t21sd234f54qwr4564dfsg");
                 ConfigurationProvider.getProvider(YamlConfiguration.class).save(config, configFile);
             } else {
                 config = ConfigurationProvider.getProvider(YamlConfiguration.class).load(configFile);
@@ -63,28 +64,21 @@ public  class NyaCatPlugins extends Plugin implements Listener {
 
             // 检查配置字段是否他妈的存在并读取他妈的喵！
             if (config.contains("host") && config.contains("port") &&
-                    config.contains("db") && config.contains("uname") &&
-                    config.contains("pwd") && config.contains("encryption_key")&&
-                    config.contains("stats_port")&& config.contains("stats_host")&&
-                    config.contains("ZuroNeko_API")&&config.contains("stats_key")) {
+                    config.contains("serverid") && config.contains("serverkey") && config.contains("ssl") && config.contains("ignore-cert-errors")) {
 
                 String ihost = config.getString("host");
                 int iport = config.getInt("port");
-                String idatabase = config.getString("db");
-                String iusername = config.getString("uname");
-                String ipassword = config.getString("pwd");
-                String iencryptionKey = config.getString("encryption_key");
-                String ApiKey = config.getString("stats_key");
-                int Aport = config.getInt("stats_port");
+                String iserverid = config.getString("serverid");
+                String iserverkey = config.getString("serverkey");
+                boolean issl= config.getBoolean("ssl");
+                boolean iignorecerterrors = config.getBoolean("ignore-cert-errors");
 
                 host = ihost;
-                username = iusername;
-                database = idatabase;
-                password = ipassword;
-                encryptionKey = iencryptionKey;
+                serverid = iserverid;
+                serverkey = iserverkey;
                 port = iport;
-                stats_port = Aport;
-                VALID_API_KEY = ApiKey;
+                ssl = issl;
+                ignorecerterrors = iignorecerterrors;
 
             } else {//返回傻逼报错喵！
                 getLogger().warning("配置文件缺少必要的字段！");
@@ -92,52 +86,127 @@ public  class NyaCatPlugins extends Plugin implements Listener {
         } catch (IOException e) {
             e.printStackTrace();
         }//声明作者你爹爹的信息喵！
-        System.out.println("NyaCatPlugins已加载 , Developer: MahiroNEKO(星野喵奈1337 , ver2.0)");
-        startApiServer();
-
+        getLogger().info("NyanServerExtension已加载 , Developer: ItzHoshinoDev_");
         getProxy().getPluginManager().registerListener(this, this);
-        getProxy().getPluginManager().registerCommand(this, new Account.GetTokenCommand());
-        getProxy().getPluginManager().registerCommand(this, new Account.RegisterAccount());
-        getProxy().getPluginManager().registerCommand(this, new Account.FastLogin());
-        getProxy().getPluginManager().registerCommand(this, new Commands.Help());
-        getProxy().getPluginManager().registerCommand(this, new Commands.HidePlugins());
-        getProxy().getPluginManager().registerCommand(this, new Commands.HideBungee());
-
+        getProxy().getPluginManager().registerCommand(this, new BindAccount(this));
+        getProxy().getPluginManager().registerCommand(this,new UnBindAccount());
+        getProxy().getPluginManager().registerCommand(this,new FastLogin());
+        connectWebSocket();
     }
+    private void connectWebSocket() {
+        try {
+            String IsSSL = "";
+            if (ssl){
+                IsSSL = "wss://";
+            }else {
+                IsSSL = "ws://";
+            }
+            SSLContext sslContext = SSLUtil.createIgnoreSSLContext();
+            wsClient = new InsecureWebSocketClient(new URI(IsSSL+host+":"+port+"/api/zako/v3/websocket/bungee/"+serverid+"/"+serverkey)) {
+                @Override
+                protected void onSetSSLParameters(SSLParameters sslParameters) {
+                    sslParameters.setEndpointIdentificationAlgorithm("");
+                }
+
+
+                @Override
+                public void onOpen(ServerHandshake handshakedata) {
+                    getLogger().info("已与NyanID建立Websocket连接");
+                }
+
+                @Override
+                public void onMessage(String message) {
+                    JSONObject json = JSONObject.parseObject(message);
+                    String packet = json.getString("packet");
+                    switch (packet) {
+                        case "S01"://完成账户绑定
+                            UUID uuid = UUID.fromString(json.getString("uuid"));
+                            ProxiedPlayer player = getProxy().getPlayer(uuid);
+                            player.sendMessage("§5§l小鳥遊ホシノ §b§l»§l§6The binding is successful, and the UID of the bound NyanUser is §c§l" + json.getString("nuid"));
+                            break;
+                        case "C01":
+                            getLogger().info(message);
+                            break;
+
+                        default:
+                            getLogger().info(message);
+                    }
+                }
+
+                @Override
+                public void onClose(int code, String reason, boolean remote) {
+                    getLogger().warning("WebSocket连接关闭: " + reason);
+                    scheduleReconnect();
+                }
+
+                @Override
+                public void onError(Exception ex) {
+                    getLogger().severe("WebSocket错误: " + ex.getMessage());
+                }
+            };
+            if (ignorecerterrors) {
+                SSLParameters sslParams = sslContext.getSupportedSSLParameters();
+                sslParams.setEndpointIdentificationAlgorithm("");
+                wsClient.setSocketFactory(sslContext.getSocketFactory());
+                wsClient.setSSLParameters(sslParams);
+
+            }
+
+            // 设置连接超时
+            wsClient.setConnectionLostTimeout(60);
+            wsClient.connectBlocking(5, TimeUnit.SECONDS);
+
+            wsClient.connect();
+        } catch (URISyntaxException e) {
+            getLogger().severe("WebSocket URL格式错误: " + e.getMessage());
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        } catch (KeyManagementException | InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+//    private void handleWebSocketMessage(String message) {
+//        JSONObject json = JSONObject.parseObject(message);
+//        String packet = json.getString("packet");
+//        switch (packet){
+//            case ("S01")://完成账户绑定
+//                String uuid = JSONObject.parseObject(message).getString("uuid");
+//                String nuid = JSONObject.parseObject(message).getString("nuid");
+//                ProxiedPlayer player = getProxy().getPlayer(uuid);
+//                player.sendMessage("§5§l小鳥遊ホシノ §b§l»§l§6The binding is successful, and the UID of the bound NyanUser is §c§l"+nuid);
+//                break;
+//
+//            default:
+//                getLogger().info(message);
+//        }
+//
+//
+//
+//        // 示例：处理来自Web服务器的命令
+//        if (message.startsWith("broadcast ")) {
+//            String broadcastMsg = message.substring(10);
+//            getProxy().broadcast(broadcastMsg);
+//        }
+//    }
+//
+
+    public void sendWebSocketMessage(String message) {
+        if (wsClient != null && wsClient.isOpen()) {
+            wsClient.send(message);
+        }
+    }
+
+    private void scheduleReconnect() {
+        getProxy().getScheduler().schedule(this, () -> {
+            getLogger().info("尝试重新连接WebSocket...");
+            connectWebSocket();
+        }, 10, TimeUnit.SECONDS);
+    }
+
     @Override
     public void onDisable() {
-
-
-        try {
-            if (connection != null && !connection.isClosed()) {
-                connection.close();
-                getLogger().info("Disconnected from MySQL database.");
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
+        wsClient.close(200);
+        getLogger().info("NyanServerExtension已卸载 , Developer: ItzHoshinoDev_");
         }
-    }
-    private void startApiServer() {
-        try {
-            // 创建Jetty服务器
-            Server server = new Server(stats_port);
 
-            // 创建Servlet上下文
-            ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
-            context.setContextPath("/");
-
-            // 将插件实例传递给Servlet
-            context.addServlet(new ServletHolder(new API(this)), "/*");
-
-            // 将Servlet上下文添加到服务器
-            server.setHandler(context);
-
-            // 启动服务器
-            server.start();
-            System.out.println("NyaAPI已启用喵~ 127.0.0.1:"+stats_port);
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.out.println("NyaAPI启动遇到问题,请检查端口是否占用");
-        }
-    }
 }

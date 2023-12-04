@@ -12,7 +12,7 @@ import java.util.UUID;
 
 public class 雌小鬼检测 {
 
-    public static boolean getSkinType(UUID uuid) {//审判你的性别喵！
+    public static String getSkinType(UUID uuid) {//审判你的性别喵！
         try {
             URL url = new URL("https://sessionserver.mojang.com/session/minecraft/profile/" + uuid.toString().replace("-", ""));
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -31,17 +31,17 @@ public class 雌小鬼检测 {
                 if (textures != null && textures.has("SKIN")) {
                     JsonObject skin = textures.getAsJsonObject("SKIN");
                     if (skin.has("metadata") && "slim".equals(skin.getAsJsonObject("metadata").get("model").getAsString())) {
-                        return false;//雌小鬼喵
+                        return "雌小鬼喵";//雌小鬼喵
                     }
                 }
-                return true;//雄小鬼喵
+                return "杂鱼喵";//雄小鬼喵
             }
         } catch (Exception e) {
             System.out.println("访问MojangAPI遇到错误,请检查API是否能使用喵!");
             e.printStackTrace();
 
         }
-        return false;//操你妈的没有性别喵！！你知道为什么吗,因为BugJump没给你安那个玩意，傻逼喵！！！！！！！！！！！！！！！！
+        return "雌小鬼喵";//操你妈的没有性别喵！！你知道为什么吗,因为BugJump没给你安那个玩意，傻逼喵！！！！！！！！！！！！！！！！
     }
 
 }
