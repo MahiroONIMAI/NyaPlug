@@ -6,15 +6,14 @@ import cn.miaonai.NyaCatPlugins.Command.UnBindAccount;
 import cn.miaonai.NyaCatPlugins.Util.InsecureWebSocketClient;
 import cn.miaonai.NyaCatPlugins.Util.SSLUtil;
 import com.alibaba.fastjson2.JSONObject;
-import net.md_5.bungee.api.ProxyServer;
-import net.md_5.bungee.api.connection.Connection;
+import net.md_5.bungee.api.chat.ClickEvent;
+import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.api.plugin.Plugin;
 import net.md_5.bungee.config.Configuration;
 import net.md_5.bungee.config.ConfigurationProvider;
 import net.md_5.bungee.config.YamlConfiguration;
-import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
 
 import javax.net.ssl.SSLContext;
@@ -25,16 +24,18 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
+import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 public  class NyaCatPlugins extends Plugin implements Listener {
 
-    private InsecureWebSocketClient wsClient;
+    private static InsecureWebSocketClient wsClient;
 
     public static int port;
     public static boolean ssl,ignorecerterrors;
     public static String host,serverid,serverkey;
+
 
     @Override
     public void onEnable() {
@@ -124,10 +125,31 @@ public  class NyaCatPlugins extends Plugin implements Listener {
                             ProxiedPlayer player = getProxy().getPlayer(uuid);
                             player.sendMessage("§5§l小鳥遊ホシノ §b§l»§l§6The binding is successful, and the UID of the bound NyanUser is §c§l" + json.getString("nuid"));
                             break;
-                        case "C01":
-                            getLogger().info(message);
+                        case "S02"://全局广播
+                            String type = json.getString("type");
+                            String msg = json.getString("msg");
+                            boolean havelink = json.getBoolean("havalink");
+                            String link = json.getString("link");
+                            TextComponent textComponent = new TextComponent();
+                            textComponent.setText("[System Message-"+type+"]§5§l小鳥遊ホシノ §b§l»§l§c"+msg);
+                            textComponent.setBold(true);
+                            if (havelink){
+                                textComponent.setClickEvent(new ClickEvent( ClickEvent.Action.OPEN_URL, link ));
+                            }
+                            getProxy().broadcast();
                             break;
-
+                        case "S32"://checkbind
+                            boolean Isbind = json.getBoolean("bind");
+                            if (Isbind){
+                                UUID uid = UUID.fromString(json.getString("muid"));
+                                String nuid = json.getString("uuid");
+                                String username = json.getString("username");
+                                ProxiedPlayer p = getProxy().getPlayer(uid);
+                                p.sendMessage("§5§l小鳥遊ホシノ §b§l»§l§6此Minecraft账户已绑定用户名为 §c§l»"+username+"["+nuid+"]"+"§l§6的NyanID用户" );
+                            } else {
+                                BindAccount.sendMessage();
+                            }
+                            break;
                         default:
                             getLogger().info(message);
                     }
@@ -165,32 +187,8 @@ public  class NyaCatPlugins extends Plugin implements Listener {
             throw new RuntimeException(e);
         }
     }
-//    private void handleWebSocketMessage(String message) {
-//        JSONObject json = JSONObject.parseObject(message);
-//        String packet = json.getString("packet");
-//        switch (packet){
-//            case ("S01")://完成账户绑定
-//                String uuid = JSONObject.parseObject(message).getString("uuid");
-//                String nuid = JSONObject.parseObject(message).getString("nuid");
-//                ProxiedPlayer player = getProxy().getPlayer(uuid);
-//                player.sendMessage("§5§l小鳥遊ホシノ §b§l»§l§6The binding is successful, and the UID of the bound NyanUser is §c§l"+nuid);
-//                break;
-//
-//            default:
-//                getLogger().info(message);
-//        }
-//
-//
-//
-//        // 示例：处理来自Web服务器的命令
-//        if (message.startsWith("broadcast ")) {
-//            String broadcastMsg = message.substring(10);
-//            getProxy().broadcast(broadcastMsg);
-//        }
-//    }
-//
 
-    public void sendWebSocketMessage(String message) {
+    public static void sendWebSocketMessage(String message) {
         if (wsClient != null && wsClient.isOpen()) {
             wsClient.send(message);
         }
@@ -205,7 +203,7 @@ public  class NyaCatPlugins extends Plugin implements Listener {
 
     @Override
     public void onDisable() {
-        wsClient.close(200);
+        wsClient.close(10001);
         getLogger().info("NyanServerExtension已卸载 , Developer: ItzHoshinoDev_");
         }
 
